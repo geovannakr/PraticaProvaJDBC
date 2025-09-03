@@ -56,4 +56,20 @@ public class OrdemDAO {
         }
         return ordens;
     }
+
+    public void atualizaStatusOrdem(int idOrdem){
+        String query = "UPDATE OrdemManutencao SET status = 'EXECUTADA' WHERE id = ?";
+
+        try(Connection conn = Conexao.conectar();
+        PreparedStatement stmt = conn.prepareStatement(query)){
+
+            stmt.setInt(1,idOrdem);
+            stmt.executeUpdate();
+
+            System.out.println("Status da ordem de manutenção alterado com sucesso!");
+
+        }catch (SQLException e){
+            e.printStackTrace();
+        }
+    }
 }

@@ -1,20 +1,12 @@
 package org.example;
 
 import com.sun.security.jgss.GSSUtil;
-import org.example.dao.MaquinaDAO;
-import org.example.dao.OrdemDAO;
-import org.example.dao.PecaDAO;
-import org.example.dao.TecnicoDAO;
-import org.example.model.Maquina;
-import org.example.model.OrdemManutencao;
-import org.example.model.Peca;
-import org.example.model.Tecnico;
+import org.example.dao.*;
+import org.example.model.*;
 
 import java.sql.SQLException;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Scanner;
+import java.util.*;
 
 public class Main {
 
@@ -221,10 +213,127 @@ public class Main {
 
             opcoesIdOrdem.add(ordemManutencao.getId());
         }
+
+        System.out.println("Digite o id da ordem que gostaria de selecionar: ");
+        int idOrdem = ler.nextInt();
+        ler.nextLine();
+
+        if(opcoesIdOrdem.contains(idOrdem)){
+            boolean sair = false;
+
+            while(!sair) {
+                var pecaDao = new PecaDAO();
+                List<Integer> opcoesPeca = new ArrayList<>();
+                List<Peca> pecas = pecaDao.listarPecas();
+                var ordemPecaDao = new OrdemPecaDAO();
+
+                for(Peca peca : pecas){
+                    if(!ordemPecaDao.verificarOrdemEPeca(idOrdem,peca.getId())){
+                        System.out.println("----- PEÇAS -----\n"+
+                                "ID: " + peca.getId() + "\n" +
+                                "Nome da peça: " + peca.getNome() + "\n" +
+                                "Quantidade de peças: " + peca.getQuantidade() + "\n" +
+                                "------------------------------------------------------");
+
+                        opcoesPeca.add(peca.getId());
+                    }
+                }
+
+                System.out.println("Digite o ID da peça que gostaria de selecioar: ");
+                int idPeca = ler.nextInt();
+                ler.nextLine();
+
+                if(opcoesPeca.contains(idPeca)){
+                    System.out.println("Digite a quantidade que será utilizada: ");
+                    double quantidadePeca = ler.nextDouble();
+                    ler.nextLine();
+
+                    double quantidadeEstoque = 0;
+                    for(Peca peca : pecas){
+                        if(idPeca == peca.getId()){
+                            quantidadeEstoque = peca.getQuantidade();
+                        }
+                    }
+
+                    if(quantidadeEstoque >= quantidadePeca){
+                        var ordemPeca = new OrdemPeca(idOrdem, idPeca, quantidadePeca);
+                        ordemPecaDao.inserirOrdemPeca(ordemPeca);
+
+                        System.out.println("Deseja selecionar outra peça?\n 1- Sim\n 2- Não");
+                        int opcaoSair = ler.nextInt();
+                        ler.nextLine();
+
+                        if(opcaoSair == 2){
+                            sair = true;
+                        }
+                    } else {
+                        System.out.println("Quantidade inválida. Insira um número possível em relação a quantidade de peça em estoque");
+                    }
+                } else {
+                    System.out.println("Opção inválida!");
+                }
+            }
+        } else {
+            System.out.println("Opção inválida!");
+            associarPecasOrdem();
+        }
     }
 
     public static void executarManutencao(){
+        var ordemDao = new OrdemDAO();
+        var maquinaDao = new MaquinaDAO();
+        List<Integer> opcoes = new ArrayList<>();
+        List<OrdemManutencao> ordens = ordemDao.listarOrdensManutencaoPendente();
 
+        for(OrdemManutencao ordemManutencao : ordens){
+            System.out.println("----- ORDENS DE MANUTENÇÃO PENDENTES -----\n"+
+                    "ID: " + ordemManutencao.getId() + "\n" +
+                    "ID máquina: " + ordemManutencao.getIdMaquina() + "\n" +
+                    "ID técnico: " + ordemManutencao.getIdTecnico() + "\n" +
+                    "Data Solicitação: " + ordemManutencao.getDataSolicitacao() + "\n" +
+                    "Status: " + ordemManutencao.getStatus() + "\n"+
+                    "---------------------------------------------------------------------");
+
+            opcoes.add(ordemManutencao.getId());
+        }
+        System.out.println("Digite o ID da ordem de manutenção que gostaria de selecionar: ");
+        int idOrdem = ler.nextInt();
+        ler.nextLine();
+
+        Map<Integer, Double> atualizacoes = new HashMap<>();
+
+        var pecaDao = new PecaDAO();
+        var ordemPecaDao = new OrdemPecaDAO();
+
+        if(opcoes.contains(idOrdem)){
+            List<OrdemPeca> ordensDePeca = ordemPecaDao.buscarOrdemPecaPorIdOrdemManutencao(idOrdem);
+
+            for(OrdemPeca ordemPeca : ordensDePeca){
+                double estoque = pecaDao.buscarEstoquePorId(ordemPeca.getIdPeca());
+                if(estoque >= ordemPeca.getQuantidade()){
+                    atualizacoes.put(ordemPeca.getIdPeca(), (estoque - ordemPeca.getQuantidade()));
+                }else{
+                    System.out.println("Estoque insuficiente para realizar manutenção!");
+                }
+            }
+
+            for(Map.Entry<Integer, Double> entrada : atualizacoes.entrySet()){
+                pecaDao.atualizaEstque(entrada.getKey(), entrada.getValue());
+            }
+            ordemDao.atualizaStatusOrdem(idOrdem);
+
+            int idMaquina = 0;
+
+            for(OrdemManutencao ordemManutencao : ordens){
+                if(ordemManutencao.getId() == idOrdem){
+                    idMaquina = ordemManutencao.getIdMaquina();
+                }
+            }
+
+            maquinaDao.atualizaStatus(idMaquina, "OPERACIONAL");
+        }else{
+            System.out.println("Digite um id válido!");
+            executarManutencao();
+        }
     }
-
 }
